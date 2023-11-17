@@ -232,7 +232,7 @@ func RenewUserHandler(c *gin.Context){
             return
         }
 
-		NumberToAdd := session.Charge.Invoice.CustomFields[0].Value
+	NumberToAdd := session.Charge.Invoice.CustomFields[0].Value
         AskAlexReNewMember("+1"+NumberToAdd)
 
     default:
