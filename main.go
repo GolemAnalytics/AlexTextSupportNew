@@ -388,7 +388,7 @@ Your focus should exclusively be on assisting with consumer technology and softw
 	var payload PayLoad
 	payload.Model = model
 	payload.Frequency_Penalty = 0
-	payload.Max_Tokens = 750
+	payload.Max_Tokens = 1600
 	payload.Top_p = 1
 	payload.Presence_Penalty = 0
 	payload.Messages = append(payload.Messages, conversationHead)
@@ -443,7 +443,7 @@ Your focus should exclusively be on assisting with consumer technology and softw
 	// Append the assistant's reply to conversation history
 	payload.Messages = append(payload.Messages, Message{Role: "assistant", Content: assistantReply})
 
-
+	fmt.Println("testing remove for prod, ",assistantReply)
 	return assistantReply,payload
 
 
