@@ -308,7 +308,8 @@ func AskAlexSaveQuestion(number string, obj PayLoad){
 }
 
 func AskAlexGetQuestions(number string)PayLoad{
-	var datareturn PayLoad
+	var datareturn string
+	var masterPayLoad PayLoad
 	Connect()
 	defer Db.Close()
 	currentDate := time.Now().Format("2006-01-02") 
@@ -319,7 +320,12 @@ func AskAlexGetQuestions(number string)PayLoad{
 	if err != nil{
 		fmt.Println(err)
 	}
-	return datareturn
+
+	jsonErr := json.Unmarshal([]byte(datareturn),&masterPayLoad)
+	if jsonErr != nil{
+		fmt.Println(jsonErr)
+	}
+	return masterPayLoad
 }
 
 func AskAlexNewMember(number string){
