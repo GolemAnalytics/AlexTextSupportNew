@@ -90,7 +90,7 @@ func main() {
 	router.POST("/incomingmsg",IncomingMsgHandler)
 	router.POST("/askalexaddnewuser",NewUserHandler)
 	router.POST("/askalexrenewuser",RenewUserHandler)
-	err := router.Run("localhost:8080")
+	err := router.Run(":8080")
 	if err != nil{
 		fmt.Println(err)
 	}
