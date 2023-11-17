@@ -150,7 +150,7 @@ func IncomingMsgHandler(c *gin.Context){
 			asstiantResp,jsonObj := OpenAIFollowUpQuery(hstry,body)
 			SendMsgHandler(asstiantResp,number)
 			//marshal results into json for storage
-			AskAlexSaveQuestion(number,jsonObj)
+			AskAlexUpdateQuestion(number,jsonObj)
 
 		}else{
 			//not a follow up quetsion
@@ -174,70 +174,70 @@ func IncomingMsgHandler(c *gin.Context){
 func NewUserHandler(c *gin.Context){
 	//a function that handles a successful stripe payment for ask alex
 	payload, err := io.ReadAll(c.Request.Body)
-    if err != nil {
-        c.JSON(http.StatusServiceUnavailable, gin.H{"error": "Error reading request body"})
-        return
-    }
+	if err != nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "Error reading request body"})
+		return
+	}
 
-    // Verify the event by checking its signature
-    event, err := webhook.ConstructEvent(payload, c.Request.Header.Get("Stripe-Signature"),  os.Getenv("EndPointSecret"))
-    
-    if err != nil {
-        c.JSON(http.StatusBadRequest, gin.H{"error": "Error verifying webhook signature"})
-        return
-    }
+	// Verify the event by checking its signature
+	event, err := webhook.ConstructEvent(payload, c.Request.Header.Get("Stripe-Signature"),  os.Getenv("EndPointSecret"))
+	
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Error verifying webhook signature"})
+		return
+	}
 
-    // Handle the event
-    switch event.Type {
-    case "checkout.session.completed":
-        var session stripe.CheckoutSession
-        err := json.Unmarshal(event.Data.Raw, &session)
-        if err != nil {
-            c.JSON(http.StatusBadRequest, gin.H{"error": "Error parsing checkout.session.async_payment_succeede event"})
-            return
-        }
+	// Handle the event
+	switch event.Type {
+	case "checkout.session.completed":
+		var session stripe.CheckoutSession
+		err := json.Unmarshal(event.Data.Raw, &session)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Error parsing checkout.session.async_payment_succeede event"})
+			return
+		}
 
 		NumberToAdd := session.CustomFields[0].Numeric.Value
-        AskAlexNewMember("+1"+NumberToAdd)
+		AskAlexNewMember("+1"+NumberToAdd)
 	SendMsgHandler("Hello and welcome! I'm Alex, your friendly tech support guide at Golem Analytics. If you're setting up any devices or need help signing up for a service like Netflix, please know that I'm here just for you. Don't worry if technology seems a bit tricky – I'll be with you at every step, offering easy-to-follow, patient guidance. Should you have any questions or face any challenges, feel free to reach out to me. Together, we'll make sure everything works smoothly for you. Your comfort and confidence in using our services is my utmost priority!","+1"+NumberToAdd)
 
-    default:
-        c.JSON(http.StatusOK, gin.H{"message": "Unhandled event type"})
-    }
+	default:
+		c.JSON(http.StatusOK, gin.H{"message": "Unhandled event type"})
+	}
 }
 
 func RenewUserHandler(c *gin.Context){
 	//a function that handles a successful stripe payment for ask alex
 	payload, err := io.ReadAll(c.Request.Body)
-    if err != nil {
-        c.JSON(http.StatusServiceUnavailable, gin.H{"error": "Error reading request body"})
-        return
-    }
+	if err != nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "Error reading request body"})
+		return
+	}
 
-    // Verify the event by checking its signature
-    event, err := webhook.ConstructEvent(payload, c.Request.Header.Get("Stripe-Signature"), os.Getenv("EndPointSecret"))
-    
-    if err != nil {
-        c.JSON(http.StatusBadRequest, gin.H{"error": "Error verifying webhook signature"})
-        return
-    }
+	// Verify the event by checking its signature
+	event, err := webhook.ConstructEvent(payload, c.Request.Header.Get("Stripe-Signature"), os.Getenv("EndPointSecret"))
+	
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Error verifying webhook signature"})
+		return
+	}
 
-    // Handle the event
-    switch event.Type {
-    case "invoice.payment_succeeded":
-        var session stripe.Invoice
-        err := json.Unmarshal(event.Data.Raw, &session)
-        if err != nil {
-            c.JSON(http.StatusBadRequest, gin.H{"error": "Error parsing checkout.session.async_payment_succeede event"})
-            return
-        }
+	// Handle the event
+	switch event.Type {
+	case "invoice.payment_succeeded":
+		var session stripe.Invoice
+		err := json.Unmarshal(event.Data.Raw, &session)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Error parsing checkout.session.async_payment_succeede event"})
+			return
+		}
 
 	NumberToAdd := session.Charge.Invoice.CustomFields[0].Value
-        AskAlexReNewMember("+1"+NumberToAdd)
+		AskAlexReNewMember("+1"+NumberToAdd)
 
-    default:
-        c.JSON(http.StatusOK, gin.H{"message": "Unhandled event type"})
-    }
+	default:
+		c.JSON(http.StatusOK, gin.H{"message": "Unhandled event type"})
+	}
 }
 
 func Connect() {
@@ -308,6 +308,25 @@ func AskAlexSaveQuestion(number string, obj PayLoad){
 
 }
 
+func AskAlexUpdateQuestion(number string, obj PayLoad){
+	currentDate := time.Now().Format("2006-01-02") 
+	// Serialize the PayLoad to JSON
+	jsonData, err := json.Marshal(obj)
+	if err != nil {
+		fmt.Println(err)
+	}
+	Connect()
+	defer Db.Close()
+	// Insert the JSON data into the database
+
+
+	_, err = Db.Exec(`UPDATE public."AlexHstry" SET "Hstry"=$1 WHERE "Number"=$2 AND "Date" = $3`,jsonData,number,currentDate)
+	if err != nil {
+		fmt.Println(err)
+	}
+
+}
+		
 func AskAlexGetQuestions(number string)PayLoad{
 	var datareturn string
 	var masterPayLoad PayLoad
@@ -328,7 +347,7 @@ func AskAlexGetQuestions(number string)PayLoad{
 	}
 	return masterPayLoad
 }
-
+		
 func AskAlexNewMember(number string){
 	Connect()
 	defer Db.Close()
@@ -339,7 +358,7 @@ func AskAlexNewMember(number string){
 		fmt.Println(err)
 	}
 }
-
+		
 func AskAlexReNewMember(number string){
 	Connect()
 	defer Db.Close()
@@ -351,7 +370,7 @@ func AskAlexReNewMember(number string){
 		fmt.Println(err)
 	}
 }
-
+		
 func OpenAINewQuery(question string)(string,PayLoad){
 	// Initialize conversation history
 	conversationHead := Message{
@@ -436,7 +455,7 @@ Remember: My responses are limited to 1600 characters for ease of understanding.
 
 
 }
-
+		
 func OpenAIFollowUpQuery(hstry PayLoad, msg string)(string,PayLoad){
 	//Use this if the user has chat history for the given day
 	hstry.Messages = append(hstry.Messages, Message{Role:"user",Content:msg})
@@ -491,3 +510,4 @@ func OpenAIFollowUpQuery(hstry PayLoad, msg string)(string,PayLoad){
 	hstry.Messages = append(hstry.Messages, Message{Role: "assistant", Content: assistantReply})
 	return assistantReply,hstry
 }
+		
