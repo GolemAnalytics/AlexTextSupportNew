@@ -199,7 +199,7 @@ func NewUserHandler(c *gin.Context){
 
 		NumberToAdd := session.CustomFields[0].Numeric.Value
 		AskAlexNewMember("+1"+NumberToAdd)
-	SendMsgHandler("Hello and welcome! I'm Alex, your friendly tech support guide at Golem Analytics. If you're setting up any devices or need help signing up for a service like Netflix, please know that I'm here just for you. Don't worry if technology seems a bit tricky – I'll be with you at every step, offering easy-to-follow, patient guidance. Should you have any questions or face any challenges, feel free to reach out to me. Together, we'll make sure everything works smoothly for you. Your comfort and confidence in using our services is my utmost priority!","+1"+NumberToAdd)
+	SendMsgHandler("Hello and welcome! This is Alex from Golem Analytics, your dedicated tech support ally. If you're navigating through device setups or signing up for services like Netflix, remember, I'm here exclusively to assist you. Understanding technology can sometimes be overwhelming, but rest assured, I'm here to provide clear, patient, and step-by-step guidance to make things easier. For any queries or hurdles you encounter, please don't hesitate to reach out. I encourage you to save this number and text me whenever you need help. Ensuring your comfort and confidence with our services is my top priority. Let's work together to ensure everything runs smoothly for you!","+1"+NumberToAdd)
 
 	default:
 		c.JSON(http.StatusOK, gin.H{"message": "Unhandled event type"})
