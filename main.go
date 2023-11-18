@@ -90,6 +90,7 @@ func main() {
 	router.POST("/incomingmsg",IncomingMsgHandler)
 	router.POST("/askalexaddnewuser",NewUserHandler)
 	router.POST("/askalexrenewuser",RenewUserHandler)
+	router.POST("/askalexuserevents",UserAccountHandler)
 	err := router.Run(":8080")
 	if err != nil{
 		fmt.Println(err)
@@ -198,8 +199,9 @@ func NewUserHandler(c *gin.Context){
 		}
 
 		NumberToAdd := session.CustomFields[0].Numeric.Value
-		AskAlexNewMember("+1"+NumberToAdd)
-	SendMsgHandler("Hello and welcome! This is Alex from Golem Analytics, your dedicated tech support ally. If you're navigating through device setups or signing up for services like Netflix, remember, I'm here exclusively to assist you. Understanding technology can sometimes be overwhelming, but rest assured, I'm here to provide clear, patient, and step-by-step guidance to make things easier. For any queries or hurdles you encounter, please don't hesitate to reach out. I encourage you to save this number and text me whenever you need help. Ensuring your comfort and confidence with our services is my top priority. Let's work together to ensure everything runs smoothly for you!","+1"+NumberToAdd)
+		ParentAccountId := session.Customer.ID
+		AskAlexNewMember(ParentAccountId,"+1"+NumberToAdd)
+		SendMsgHandler("Hello and welcome! I'm Alex, your friendly tech support guide at Golem Analytics. If you're setting up any devices or need help signing up for a service like Netflix, please know that I'm here just for you. Don't worry if technology seems a bit tricky – I'll be with you at every step, offering easy-to-follow, patient guidance. Should you have any questions or face any challenges, feel free to reach out to me. Together, we'll make sure everything works smoothly for you. Your comfort and confidence in using our services is my utmost priority!","+1"+NumberToAdd)
 
 	default:
 		c.JSON(http.StatusOK, gin.H{"message": "Unhandled event type"})
@@ -232,12 +234,55 @@ func RenewUserHandler(c *gin.Context){
 			return
 		}
 
-	NumberToAdd := session.Charge.Invoice.CustomFields[0].Value
+		NumberToAdd := session.Charge.Invoice.CustomFields[0].Value		
 		AskAlexReNewMember("+1"+NumberToAdd)
 
 	default:
 		c.JSON(http.StatusOK, gin.H{"message": "Unhandled event type"})
 	}
+}
+
+func UserAccountHandler(c *gin.Context){
+		//a function that handles a successful stripe payment for ask alex
+		payload, err := io.ReadAll(c.Request.Body)
+		if err != nil {
+			c.JSON(http.StatusServiceUnavailable, gin.H{"error": "Error reading request body"})
+			return
+		}
+	
+		// Verify the event by checking its signature
+		event, err := webhook.ConstructEvent(payload, c.Request.Header.Get("Stripe-Signature"), os.Getenv("EndPointSecret"))
+		
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Error verifying webhook signature"})
+			return
+		}
+	
+		// Handle the event
+		switch event.Type {
+		case "customer.subscription.deleted":
+			var session stripe.Subscription
+			err := json.Unmarshal(event.Data.Raw, &session)
+			if err != nil {
+				c.JSON(http.StatusBadRequest, gin.H{"error": "Error parsing checkout.session.async_payment_succeede event"})
+				return
+			}
+	
+			ParentID := session.Customer.ID
+			AskAlexCancelMember(ParentID)
+
+		case "invoice.payment_succeeded":
+			var session stripe.Invoice
+			err := json.Unmarshal(event.Data.Raw, &session)
+			if err != nil {
+				c.JSON(http.StatusBadRequest, gin.H{"error": "Error parsing checkout.session.async_payment_succeede event"})
+				return
+			}
+			ParentID := session.Customer.ID
+			AskAlexCancelMember(ParentID)
+		default:
+			c.JSON(http.StatusOK, gin.H{"message": "Unhandled event type"})
+		}
 }
 
 func Connect() {
@@ -348,12 +393,12 @@ func AskAlexGetQuestions(number string)PayLoad{
 	return masterPayLoad
 }
 		
-func AskAlexNewMember(number string){
+func AskAlexNewMember(number,ID string){
 	Connect()
 	defer Db.Close()
 	currentDate := time.Now().Format("2006-01-02") 
 	endMonthDate := time.Now().AddDate(0,1,0).Format("2006-01-02") 
-	_, err = Db.Exec(`INSERT INTO public."AlexStatus" ("Number", "Status", "JoinDate", "EndDate") VALUES ($1,$2,$3,$4)`,number,true,currentDate,endMonthDate)
+	_, err = Db.Exec(`INSERT INTO public."AlexStatus" ("Number", "Status", "JoinDate", "EndDate","ParentID") VALUES ($1,$2,$3,$4)`,number,true,currentDate,endMonthDate,ID)
 	if err != nil{
 		fmt.Println(err)
 	}
@@ -364,13 +409,24 @@ func AskAlexReNewMember(number string){
 	defer Db.Close()
 
 	endMonthDate := time.Now().AddDate(0,1,0).Format("2006-01-02") 
-	updatewuery := fmt.Sprintf(`UPDATE public."AlexStatus" SET "EndDate"=%s WHERE "Number"==%s;`,endMonthDate,number)
+	updatewuery := fmt.Sprintf(`UPDATE public."AlexStatus" SET "EndDate"=%s WHERE "Number"=%s;`,endMonthDate,number)
 	_, err = Db.Exec(updatewuery)
 	if err != nil{
 		fmt.Println(err)
 	}
 }
-		
+
+func AskAlexCancelMember(ParentID string){
+	Connect()
+	defer Db.Close()
+
+	endMonthDate := time.Now().Format("2006-01-02") 
+	_, err = Db.Exec(`UPDATE public."AlexStatus" SET "EndDate"=$1 "Status"=$2 WHERE "ParentID"=$3;`,endMonthDate,false,ParentID)
+	if err != nil{
+		fmt.Println(err)
+	}
+}
+
 func OpenAINewQuery(question string)(string,PayLoad){
 	// Initialize conversation history
 	conversationHead := Message{
