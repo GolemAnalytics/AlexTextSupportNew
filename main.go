@@ -398,7 +398,7 @@ func AskAlexNewMember(number,ID string){
 	defer Db.Close()
 	currentDate := time.Now().Format("2006-01-02") 
 	endMonthDate := time.Now().AddDate(0,1,0).Format("2006-01-02") 
-	_, err = Db.Exec(`INSERT INTO public."AlexStatus" ("Number", "Status", "JoinDate", "EndDate","ParentID") VALUES ($1,$2,$3,$4)`,number,true,currentDate,endMonthDate,ID)
+	_, err = Db.Exec(`INSERT INTO public."AlexStatus" ("Number", "Status", "JoinDate", "EndDate","ParentID") VALUES ($1,$2,$3,$4,$5)`,number,true,currentDate,endMonthDate,ID)
 	if err != nil{
 		fmt.Println(err)
 	}
