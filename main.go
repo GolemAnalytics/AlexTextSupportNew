@@ -504,7 +504,6 @@ Remember: My responses are limited to 1600 characters for ease of understanding.
 	// Append the assistant's reply to conversation history
 	payload.Messages = append(payload.Messages, Message{Role: "assistant", Content: assistantReply})
 
-	fmt.Println("testing remove for prod, ",assistantReply)
 	return assistantReply,payload
 
 
