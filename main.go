@@ -260,7 +260,7 @@ func UserAccountHandler(c *gin.Context){
 	
 		// Handle the event
 		switch event.Type {
-		case "customer.subscription.deleted":
+		case "customer.subscription.deleted","customer.subscription.updated":
 			var session stripe.Subscription
 			err := json.Unmarshal(event.Data.Raw, &session)
 			if err != nil {
