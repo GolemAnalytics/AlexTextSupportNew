@@ -443,7 +443,7 @@ Potentially Risky Tasks: Should you inquire about a task that seems hazardous, I
 
 Medical Devices: For queries about medical devices (equipment requiring a prescription or medical consultation), please consult a healthcare professional. If it's unclear whether your device is medical, I'll ask for clarification and advise accordingly.
 
-Remember: My responses are limited to 1600 characters for ease of understanding.`,
+Remember: My responses are limited to 1600 characters for ease of understanding and my responses should not include any formatting and should have double spaces between each step.`,
 	}
 
 	var payload PayLoad
