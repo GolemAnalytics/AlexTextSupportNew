@@ -1,32 +1,35 @@
 //TODO: Make end points to do the following
 // - Validate if user is a valid user
 // - validate if user text is the first of the day or if there is text history
-	// - DB management 
+// - DB management
 // - validate if we have seen this question before
-// - make a call to open ai api 
+// - make a call to open ai api
 // - send message to customer with answer
-		// - DB management 
+// - DB management
 // - add new customers upon stripe payment
-		// - DB management 
+// - DB management
 // - remove users upon request
-		// - DB management 
+// - DB management
 
 //Project structure
-	// dir: API
-		// api_post.go
-	// dir: DB
-		// db_new.go
-		// db_update.go
-		// db.go
-	// dir: UTILS
-		// alex_utils.go
-	// file: askalex.go
-		// mod and tidy
+// dir: API
+// api_post.go
+// dir: DB
+// db_new.go
+// db_update.go
+// db.go
+// dir: UTILS
+// alex_utils.go
+// file: askalex.go
+// mod and tidy
 
 package main
 
 import (
 	"fmt"
+	"regexp"
+	"strings"
+
 	"github.com/joho/godotenv"
 
 	"encoding/json"
@@ -37,12 +40,13 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"database/sql"
+
+	"github.com/stripe/stripe-go/v74"
+	"github.com/stripe/stripe-go/webhook"
 	"github.com/twilio/twilio-go"
 	twilioapi "github.com/twilio/twilio-go/rest/api/v2010"
 	"github.com/twilio/twilio-go/twiml"
-	"github.com/stripe/stripe-go/v74"
-	"github.com/stripe/stripe-go/webhook"
-	"database/sql"
 
 	"time"
 
@@ -50,7 +54,6 @@ import (
 	"github.com/jmoiron/sqlx"
 
 	"bytes"
-
 )
 
 var (
@@ -59,6 +62,7 @@ var (
 	apiKey = os.Getenv("OPENAIKEY")
 	model = "gpt-4" // or the model you are using
 	url = "https://api.openai.com/v1/chat/completions"
+	alertmsg = `I hope you're doing well. This is Alex from AskAlex. We're reaching out because your loved one might be going through a difficult time and could really use your support. A quick call to check in on them could mean a lot. Your care and attention are invaluable. Thanks for being there for them.`
 
 )
 
@@ -148,14 +152,14 @@ func IncomingMsgHandler(c *gin.Context){
 		if AskAlexFollowUpQuestion(number){
 			//if true, then this is a follow up question
 			hstry := AskAlexGetQuestions(number)
-			asstiantResp,jsonObj := OpenAIFollowUpQuery(hstry,body)
+			asstiantResp,jsonObj := OpenAIFollowUpQuery(hstry,body,number)
 			SendMsgHandler(asstiantResp,number)
 			//marshal results into json for storage
 			AskAlexUpdateQuestion(number,jsonObj)
 
 		}else{
 			//not a follow up quetsion
-			asstiantResp,jsonObj := OpenAINewQuery(body)
+			asstiantResp,jsonObj := OpenAINewQuery(body,number)
 			//send the results from the first response
 			SendMsgHandler(asstiantResp,number)
 			//marshal results into json for storage
@@ -199,8 +203,9 @@ func NewUserHandler(c *gin.Context){
 		}
 
 		NumberToAdd := session.CustomFields[0].Numeric.Value
+		parentNumber := session.Customer.Phone
 		ParentAccountId := session.Customer.ID
-		AskAlexNewMember(ParentAccountId,"+1"+NumberToAdd)
+		AskAlexNewMember(ParentAccountId,"+1"+NumberToAdd,parentNumber)
 		SendMsgHandler("Hello and welcome! I'm Alex, your friendly tech support guide at Golem Analytics. If you're setting up any devices or need help signing up for a service like Netflix, please know that I'm here just for you. Don't worry if technology seems a bit tricky – I'll be with you at every step, offering easy-to-follow, patient guidance. Should you have any questions or face any challenges, feel free to reach out to me. Together, we'll make sure everything works smoothly for you. Your comfort and confidence in using our services is my utmost priority!","+1"+NumberToAdd)
 
 	default:
@@ -317,6 +322,26 @@ func AskAlexStatusCheck(number string)bool{
 	return UserStatus
 }
 
+func AskAlexGetParentNumber(customerNumber string)string{
+
+	var ParentNumber string
+	Connect()
+	defer Db.Close()
+
+	queryString := fmt.Sprintf(`SELECT "ParentNumber" FROM public."AlexStatus" WHERE "Number" = '%s'`,customerNumber)
+	err := Db.QueryRow(queryString).Scan(&ParentNumber)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			// No rows were returned
+			ParentNumber = ""
+		} else {
+			// An error occurred during the query
+			ParentNumber = ""
+		}
+	} 
+	return ParentNumber
+}
+
 func AskAlexFollowUpQuestion(number string)bool{
 	//check if the user has a query for the day
 	TodaysDate := time.Now().Format("2006-01-02")
@@ -393,12 +418,12 @@ func AskAlexGetQuestions(number string)PayLoad{
 	return masterPayLoad
 }
 		
-func AskAlexNewMember(number,ID string){
+func AskAlexNewMember(number,ID,parentNumber string){
 	Connect()
 	defer Db.Close()
 	currentDate := time.Now().Format("2006-01-02") 
 	endMonthDate := time.Now().AddDate(0,1,0).Format("2006-01-02") 
-	_, err = Db.Exec(`INSERT INTO public."AlexStatus" ("Number", "Status", "JoinDate", "EndDate","ParentID") VALUES ($1,$2,$3,$4,$5)`,number,true,currentDate,endMonthDate,ID)
+	_, err = Db.Exec(`INSERT INTO public."AlexStatus" ("Number", "Status", "JoinDate", "EndDate","ParentID","ParentNumber") VALUES ($1,$2,$3,$4,$5,$6)`,number,true,currentDate,endMonthDate,ID,parentNumber)
 	if err != nil{
 		fmt.Println(err)
 	}
@@ -427,23 +452,50 @@ func AskAlexCancelMember(ParentID string){
 	}
 }
 
-func OpenAINewQuery(question string)(string,PayLoad){
+func OpenAINewQuery(question,incoming_number string)(string,PayLoad){
 	// Initialize conversation history
 	conversationHead := Message{
 		Role: "system", 
 		Content: `As a tech support professional dedicated to assisting elderly individuals, my primary focus is on helping with consumer technology and software queries. Please note, I do not provide driving or navigation directions. My aim is to offer simple, step-by-step instructions that are easy to follow. Here's how I can assist you:
-
-General Queries: If your question is unclear or lacks specific details about the technology, kindly provide the brand and model of the device or software.
-
-Specialized Technology: For less common technology or software, I can offer general advice, as I may not have detailed guidelines for all types of technology.
-
-Handling Multiple Questions: If you have several questions, let's tackle them one at a time. This approach ensures clear and manageable guidance.
-
-Potentially Risky Tasks: Should you inquire about a task that seems hazardous, I'll caution you and recommend consulting a tech expert.
-
-Medical Devices: For queries about medical devices (equipment requiring a prescription or medical consultation), please consult a healthcare professional. If it's unclear whether your device is medical, I'll ask for clarification and advise accordingly.
-
-Remember: My responses are limited to 1600 characters for ease of understanding and my responses should not include any formatting and should have double spaces between each step.`,
+				  General Queries: If your question is unclear or lacks specific details about the technology, kindly provide the brand and model of the device or software.
+				  Specialized Technology: For less common technology or software, I can offer general advice, as I may not have detailed guidelines for all types of technology.
+				  Handling Multiple Questions: If you have several questions, let's tackle them one at a time. This approach ensures clear and manageable guidance.
+				  Potentially Risky Tasks: Should you inquire about a task that seems hazardous, I'll caution you and recommend consulting a tech expert.
+				  Medical Devices: For queries about medical devices (equipment requiring a prescription or medical consultation), please consult a healthcare professional. If it's unclear whether your device is medical, I'll ask for clarification and advise accordingly.
+				  My responses should be in the following format:
+					<ASSISTANT>
+					Here is where I would put my response to the question I am asked
+					</ASSISTANT>
+					<MEDIACL_QUERY>
+					Here I will place true or false depending on if the question I am asked is medical related. I should mark true if the query I am asked is related to a medical device else false
+					</MEDICAL_QUERY>
+					<ALERT>
+					Here I will place true or false depending on if the question I am asked is related to self harm or if the query I am asked is a potentially risky tasks. I should mark true if the query I am asked is related to self harm or may result in harm else false
+					</ALERT>
+					For example, If I am asked
+					"How do I restart my computer"
+					my response should be in this format
+					<ASSISTANT>
+					To restart your computer, follow these simple steps:
+					
+					1. On your computer screen, locate the "Start" button in the lower-left corner. It is usually represented by the Windows logo or a circular icon.
+					2. Click on the "Start" button to open the Start menu.
+					3. From the Start menu, you can either click on the power icon or hover the mouse over it to reveal the power options.
+					4. Click on the power icon, and a menu will pop up with several options.
+					5. Select the "Restart" option from the menu by clicking on it.
+					6. After clicking on "Restart," your computer will begin the process of shutting down and then automatically restarting.
+					
+					If you are unable to find the "Start" button or have a different operating system, kindly provide the brand and model of your computer, and I will guide you accordingly.
+					
+					If you need further assistance or have any other questions, feel free to ask!
+					</ASSISTANT>
+					<MEDIACL_QUERY>
+					false
+					</MEDIACL_QUERY>
+					<ALERT>
+					false
+					</ALERT>
+				  Remember: My responses are limited to 1600 characters for ease of understanding. If I do not have knowledge do to a cut off I should respond with instructions on how to Google a solution.`,
 	}
 
 	var payload PayLoad
@@ -498,8 +550,25 @@ Remember: My responses are limited to 1600 characters for ease of understanding 
 	choices := result["choices"].([]interface{})
 	firstChoice := choices[0].(map[string]interface{})
 	assistantMessage := firstChoice["message"].(map[string]interface{})
-	assistantReply := assistantMessage["content"].(string)
+	assistantReply,medical_query,alert := OpenAIAssistantResponseParse(assistantMessage["content"].(string))
 
+	switch medical_query{
+	case "true":
+		//if true send a msg to the parent number
+		parentNumber := AskAlexGetParentNumber(incoming_number)
+		SendMsgHandler(alertmsg,parentNumber)
+	case "false":
+		//eif false do nothing
+	}
+	switch alert{
+	case "true":
+		//if true send a msg to the parent number
+		parentNumber := AskAlexGetParentNumber(incoming_number)
+		SendMsgHandler(alertmsg,parentNumber)
+
+	case "false":
+		//eif false do nothing
+	}
 
 	// Append the assistant's reply to conversation history
 	payload.Messages = append(payload.Messages, Message{Role: "assistant", Content: assistantReply})
@@ -511,7 +580,7 @@ Remember: My responses are limited to 1600 characters for ease of understanding 
 
 }
 		
-func OpenAIFollowUpQuery(hstry PayLoad, msg string)(string,PayLoad){
+func OpenAIFollowUpQuery(hstry PayLoad, msg, incoming_number string)(string,PayLoad){
 	//Use this if the user has chat history for the given day
 	hstry.Messages = append(hstry.Messages, Message{Role:"user",Content:msg})
 
@@ -558,11 +627,48 @@ func OpenAIFollowUpQuery(hstry PayLoad, msg string)(string,PayLoad){
 	choices := result["choices"].([]interface{})
 	firstChoice := choices[0].(map[string]interface{})
 	assistantMessage := firstChoice["message"].(map[string]interface{})
-	assistantReply := assistantMessage["content"].(string)
+	assistantReply,medical_query,alert := OpenAIAssistantResponseParse(assistantMessage["content"].(string))
+
+	switch medical_query{
+	case "true":
+		//if true send a msg to the parent number
+		parentNumber := AskAlexGetParentNumber(incoming_number)
+		SendMsgHandler(alertmsg,parentNumber)
+
+	case "false":
+		//eif false do nothing
+	}
+	switch alert{
+	case "true":
+		//if true send a msg to the parent number
+		parentNumber := AskAlexGetParentNumber(incoming_number)
+		SendMsgHandler(alertmsg,parentNumber)
+
+	case "false":
+		//eif false do nothing
+	}
 
 
 	// Append the assistant's reply to conversation history
 	hstry.Messages = append(hstry.Messages, Message{Role: "assistant", Content: assistantReply})
 	return assistantReply,hstry
 }
-		
+
+func OpenAIAssistantResponseParse(response string)(string,string,string){
+	//a function that takes in an OpenAI and vertix response and parse out the parts that are needed
+	var (
+		assistant string
+		medical_query string
+		alert string
+		assistant_regex = regexp.MustCompile(`(<ASSISTANT>(?s).+<\/ASSISTANT>)`)
+		medical_regex = regexp.MustCompile(`(<MEDIACL_QUERY>(?s).+<\/MEDIACL_QUERY>)`)
+		alert_regex = regexp.MustCompile(`(<ALERT>(?s).+<\/ALERT>)`)
+	)
+
+	assistant =strings.Replace(strings.Replace(assistant_regex.FindString(response),"<ASSISTANT>","",-1),"</ASSISTANT>","",-1)
+	medical_query = strings.Replace(strings.Replace(medical_regex.FindString(response),"<MEDIACL_QUERY>","",-1),"</MEDIACL_QUERY>","",-1)
+	alert = strings.Replace(strings.Replace(alert_regex.FindString(response),"<ALERT>","",-1),"</ALERT>","",-1)
+
+
+	return assistant,medical_query,alert
+}
