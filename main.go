@@ -551,6 +551,7 @@ func OpenAINewQuery(question,incoming_number string)(string,PayLoad){
 	firstChoice := choices[0].(map[string]interface{})
 	assistantMessage := firstChoice["message"].(map[string]interface{})
 	assistantReply,medical_query,alert := OpenAIAssistantResponseParse(assistantMessage["content"].(string))
+	assistaneReplyRaw := assistantMessage["content"].(string)
 
 	switch medical_query{
 	case "true":
@@ -571,7 +572,7 @@ func OpenAINewQuery(question,incoming_number string)(string,PayLoad){
 	}
 
 	// Append the assistant's reply to conversation history
-	payload.Messages = append(payload.Messages, Message{Role: "assistant", Content: assistantReply})
+	payload.Messages = append(payload.Messages, Message{Role: "assistant", Content: assistaneReplyRaw})
 
 	return assistantReply,payload
 
@@ -628,6 +629,7 @@ func OpenAIFollowUpQuery(hstry PayLoad, msg, incoming_number string)(string,PayL
 	firstChoice := choices[0].(map[string]interface{})
 	assistantMessage := firstChoice["message"].(map[string]interface{})
 	assistantReply,medical_query,alert := OpenAIAssistantResponseParse(assistantMessage["content"].(string))
+	assistaneReplyRaw := assistantMessage["content"].(string)
 
 	switch medical_query{
 	case "true":
@@ -650,7 +652,7 @@ func OpenAIFollowUpQuery(hstry PayLoad, msg, incoming_number string)(string,PayL
 
 
 	// Append the assistant's reply to conversation history
-	hstry.Messages = append(hstry.Messages, Message{Role: "assistant", Content: assistantReply})
+	hstry.Messages = append(hstry.Messages, Message{Role: "assistant", Content: assistaneReplyRaw})
 	return assistantReply,hstry
 }
 
