@@ -514,23 +514,10 @@ func OpenAINewQuery(question,incoming_number string)(string,PayLoad){
 	assistantReply,medical_query,alert := OpenAIAssistantResponseParse(assistantMessage["content"].(string))
 	assistaneReplyRaw := assistantMessage["content"].(string)
 
-	switch medical_query{
-	case "true":
-		//if true send a msg to the parent number
+	if strings.ToLower(medical_query)=="true" || strings.ToLower(alert)=="true"{
 		parentNumber := AskAlexGetParentNumber(incoming_number)
-		SendMsgHandler(alertmsg,parentNumber)
-	case "false":
-		//eif false do nothing
-	}
-	switch alert{
-	case "true":
-		//if true send a msg to the parent number
-		parentNumber := AskAlexGetParentNumber(incoming_number)
-		SendMsgHandler(alertmsg,parentNumber)
-
-	case "false":
-		//eif false do nothing
-	}
+		SendMsgHandler(alertmsg,parentNumber)	
+		}
 
 	// Append the assistant's reply to conversation history
 	payload.Messages = append(payload.Messages, Message{Role: "assistant", Content: assistaneReplyRaw})
@@ -592,24 +579,10 @@ func OpenAIFollowUpQuery(hstry PayLoad, msg, incoming_number string)(string,PayL
 	assistantReply,medical_query,alert := OpenAIAssistantResponseParse(assistantMessage["content"].(string))
 	assistaneReplyRaw := assistantMessage["content"].(string)
 
-	switch medical_query{
-	case "true":
-		//if true send a msg to the parent number
+	if strings.ToLower(medical_query)=="true" || strings.ToLower(alert)=="true"{
 		parentNumber := AskAlexGetParentNumber(incoming_number)
-		SendMsgHandler(alertmsg,parentNumber)
-
-	case "false":
-		//eif false do nothing
-	}
-	switch alert{
-	case "true":
-		//if true send a msg to the parent number
-		parentNumber := AskAlexGetParentNumber(incoming_number)
-		SendMsgHandler(alertmsg,parentNumber)
-
-	case "false":
-		//eif false do nothing
-	}
+		SendMsgHandler(alertmsg,parentNumber)	
+		}
 
 
 	// Append the assistant's reply to conversation history
