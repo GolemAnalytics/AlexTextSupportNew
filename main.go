@@ -597,12 +597,12 @@ func OpenAIAssistantResponseParse(response string)(string,string,string){
 		medical_query string
 		alert string
 		assistant_regex = regexp.MustCompile(`(ASSISTANT_START(?s).+ASSISTANT_END)`)
-		medical_regex = regexp.MustCompile(`(MEDIACL_QUERY_START(?s).+MEDIACL_QUERY_END)`)
+		medical_regex = regexp.MustCompile(`(MEDICAL_QUERY_START(?s).+MEDICAL_QUERY_END)`)
 		alert_regex = regexp.MustCompile(`(ALERT_START(?s).+ALERT_END)`)
 	)
 
 	assistant =strings.Replace(strings.Replace(assistant_regex.FindString(response),"ASSISTANT_START","",-1),"ASSISTANT_END","",-1)
-	medical_query = strings.Replace(strings.Replace(medical_regex.FindString(response),"MEDIACL_QUERY_START","",-1),"MEDIACL_QUERY_END","",-1)
+	medical_query = strings.Replace(strings.Replace(medical_regex.FindString(response),"MEDICAL_QUERY_START","",-1),"MEDICAL_QUERY_END","",-1)
 	alert = strings.Replace(strings.Replace(alert_regex.FindString(response),"ALERT_START","",-1),"ALERT_END","",-1)
 
 
