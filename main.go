@@ -514,7 +514,7 @@ func OpenAINewQuery(question,incoming_number string)(string,PayLoad){
 	assistantReply,medical_query,alert := OpenAIAssistantResponseParse(assistantMessage["content"].(string))
 	assistaneReplyRaw := assistantMessage["content"].(string)
 
-	if strings.ToLower(medical_query)=="true" || strings.ToLower(alert)=="true"{
+	if strings.ToLower(medical_query)=="\ntrue\n" || strings.ToLower(alert)=="\ntrue\n"{
 		parentNumber := AskAlexGetParentNumber(incoming_number)
 		SendMsgHandler(alertmsg,parentNumber)	
 		}
@@ -579,7 +579,7 @@ func OpenAIFollowUpQuery(hstry PayLoad, msg, incoming_number string)(string,PayL
 	assistantReply,medical_query,alert := OpenAIAssistantResponseParse(assistantMessage["content"].(string))
 	assistaneReplyRaw := assistantMessage["content"].(string)
 
-	if strings.ToLower(medical_query)=="true" || strings.ToLower(alert)=="true"{
+	if strings.ToLower(medical_query)=="\ntrue\n" || strings.ToLower(alert)=="\ntrue\n"{
 		parentNumber := AskAlexGetParentNumber(incoming_number)
 		SendMsgHandler(alertmsg,parentNumber)	
 		}
